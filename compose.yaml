@@ -1,0 +1,9 @@
+
+services:
+  nexvion:
+    build: .
+    image: nexvion-web:v1
+    container_name: nexvion-web
+    ports:
+      - "8088:80"
+    restart: unless-stopped
