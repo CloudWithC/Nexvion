@@ -27,16 +27,29 @@ jobs:
           tags: nexvion-web:ci
           load: true
 
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: nexvion-web:ci
+          scan-type: image
+          format: table
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '0'
+
       - name: Test website pages
         run: |
           docker run -d --name nexvion-test -p 8080:80 nexvion-web:ci
           trap 'docker rm -f nexvion-test >/dev/null 2>&1 || true' EXIT
+
           for i in $(seq 1 10); do
             if curl --fail --silent http://localhost:8080/ > /dev/null; then
               break
             fi
             sleep 2
           done
+
           curl --fail http://localhost:8080/
           curl --fail http://localhost:8080/products.html
           curl --fail http://localhost:8080/payment.html
