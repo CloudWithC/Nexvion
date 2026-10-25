@@ -1,5 +1,4 @@
-
-name: Nexvion CI
+name: Nexvion CI/CD
 
 on:
   push:
@@ -28,9 +27,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          tags: |
-            nexvion-web:ci
-            ghcr.io/cloudwithc/nexvion:latest
+          tags: nexvion-web:ci
           load: true
 
       - name: Scan image for vulnerabilities
@@ -61,13 +58,49 @@ jobs:
           curl --fail http://localhost:8080/payment.html
 
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish Docker image
-        if: github.event_name != 'pull_request'
-        run: docker push ghcr.io/cloudwithc/nexvion:latest
+      - name: Publish image to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/cloudwithc/nexvion:latest
+
+  deploy:
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+      - name: Deploy Nexvion
+        run: |
+          set -eu
+
+          docker pull ghcr.io/cloudwithc/nexvion:latest
+
+          docker rm -f nexvion-web 2>/dev/null || true
+
+          docker run -d \
+            --name nexvion-web \
+            --restart unless-stopped \
+            -p 8088:80 \
+            ghcr.io/cloudwithc/nexvion:latest
+
+          for i in $(seq 1 10); do
+            if curl --fail --silent http://localhost:8088/ > /dev/null; then
+              echo "Nexvion deployment successful"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Nexvion health check failed"
+          docker logs nexvion-web
+          exit 1
