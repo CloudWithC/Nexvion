@@ -1,130 +1,194 @@
-# Nexvion – Kubernetes Deployment
+# Nexvion – End-to-End DevOps Project
 
 ## Overview
-Nexvion is deployed on a local Kubernetes cluster using Kind.
 
-## Kubernetes Resources
-- **Namespace:** `nexvion`
-- **Deployment:** `nexvion`
-- **Replicas:** 2
-- **Container Image:** `nexvion-web:v1`
-- **Service:** `nexvion-service` (NodePort 30088)
-- **ConfigMap:** `nexvion-config`
-- **Secret:** `nexvion-secret` (demo placeholder only)
+Nexvion is a web application used to demonstrate an end-to-end DevOps workflow. The project covers containerization, CI/CD automation, Infrastructure as Code, configuration management, Kubernetes orchestration, monitoring, and security scanning.
 
-## Deployment
+The project uses free and open-source tools and a local Ubuntu/Kind environment wherever possible.
 
-Load the Docker image into the existing Kind cluster:
+## Technology Stack
 
-```bash
-kind load docker-image nexvion-web:v1 --name cib-cluster
+| Area | Tools |
+|---|---|
+| Application | HTML, CSS, JavaScript |
+| Containerization | Docker, Docker Compose |
+| CI/CD | GitHub Actions, GitHub Container Registry |
+| Infrastructure as Code | Terraform |
+| Configuration Management | Ansible |
+| Orchestration | Kubernetes, Kind |
+| Monitoring | Prometheus, Grafana |
+| Metrics and Probing | Node Exporter, Blackbox Exporter |
+| Alerting | Prometheus Alert Rules, Alertmanager |
+| Security | Trivy |
+| Operating System | Ubuntu Linux |
+
+## Architecture
+
+```mermaid
+flowchart TD
+    A[Developer pushes code to GitHub]
+    A --> B[GitHub Actions CI]
+    B --> C[Docker Image Build]
+    C --> D[Trivy Image Security Scan]
+    D --> E[Application Tests]
+    E --> F[GitHub Container Registry]
+    F --> G[Self-hosted Deployment Runner]
+    G --> H[Candidate Deployment]
+    H --> I[Health Checks]
+    I --> J[Production Deployment]
+    J --> K[Kubernetes Deployment]
+    K --> L[Prometheus Monitoring]
+    L --> M[Grafana Dashboard and Alerts]
+    N[Terraform] --> O[AWS Infrastructure Configuration]
+    P[Ansible] --> Q[Ubuntu Configuration]
+    R[Trivy] --> S[Filesystem and Secret Scanning]
 ```
 
-Apply the Kubernetes resources:
+## Phase 1 – Docker and CI/CD
 
-```bash
-kubectl apply -f kubernetes/namespace.yaml
-kubectl apply -f kubernetes/configmap.yaml
-kubectl apply -f kubernetes/secret.yaml
-kubectl apply -f kubernetes/deployment.yaml
-kubectl apply -f kubernetes/service.yaml
-kubectl rollout status deployment/nexvion -n nexvion --timeout=120s
-```
+- Containerized the Nexvion web application using Docker.
+- Configured Docker Compose.
+- Created a GitHub Actions CI/CD pipeline.
+- Built and published the Docker image to GitHub Container Registry.
+- Configured automated application tests.
+- Implemented candidate deployment and production health checks.
+- Added rollback handling for deployment failures.
+- Used a self-hosted GitHub Actions runner for deployment.
 
-## Verification
+## Phase 2 – Infrastructure as Code with Terraform
 
-Check Kubernetes resources:
+- Created Terraform configuration for AWS infrastructure.
+- Configured an AWS security group in the eu-north-1 region.
+- Used Terraform variables and outputs.
+- Generated deployment information.
+- Kept Terraform state and plan files out of Git.
 
-```bash
-kubectl get all -n nexvion
-```
+Note: This phase demonstrates Terraform configuration. It does not represent a continuously running EC2 deployment.
 
-Access the website using port forwarding:
+## Phase 3 – Configuration Management with Ansible
 
-```bash
-kubectl port-forward -n nexvion service/nexvion-service 18088:80
-```
+- Configured Ansible to manage the Ubuntu host.
+- Automated Nginx installation and configuration.
+- Used an Ansible inventory and playbook.
+- Used a Jinja2 template for application configuration.
+- Verified playbook syntax and successful execution.
+- Checked idempotency with a subsequent run.
 
-In another terminal, verify the website pages:
+## Phase 4 – Kubernetes Orchestration
 
-```bash
-curl -I http://localhost:18088/
-curl -I http://localhost:18088/products.html
-curl -I http://localhost:18088/payment.html
-```
+- Created a local Kubernetes cluster using Kind.
+- Created a dedicated Nexvion namespace.
+- Configured a Kubernetes Deployment with two replicas.
+- Created a ConfigMap and Service.
+- Configured a NodePort service.
+- Tested application availability using port forwarding.
+- Performed a rolling restart.
+- Simulated an image-pull failure and tested rollback.
 
-All three pages returned **HTTP 200 OK** during testing.
+The application pages returned HTTP 200 during verification.
 
-## Rolling Restart
+## Phase 5 – Monitoring and Observability
 
-A rolling restart was tested successfully:
+Monitoring components:
 
-```bash
-kubectl rollout restart deployment/nexvion -n nexvion
-kubectl rollout status deployment/nexvion -n nexvion --timeout=120s
-kubectl get pods -n nexvion
-```
+- Prometheus – metrics collection.
+- Node Exporter – host metrics.
+- Blackbox Exporter – application availability checks.
+- Grafana – monitoring dashboard.
+- Alertmanager – alert routing.
 
-## Rollback Test
+Grafana dashboard panels:
 
-An unavailable image (`nexvion-web:bad`) was temporarily assigned to simulate a failed deployment.
+1. CPU usage
+2. Memory usage
+3. Disk usage
+4. Website availability
+5. Website HTTP status
 
-Kubernetes reported an image-pull error. The previous working deployment was restored successfully:
+Configured alert rules:
 
-```bash
-kubectl rollout undo deployment/nexvion -n nexvion
-kubectl rollout status deployment/nexvion -n nexvion --timeout=120s
-kubectl get deployments,pods -n nexvion
-```
+- NexvionWebsiteDown
+- HighCPUUsage
+- HighMemoryUsage
+- LowDiskSpace
 
-The deployment returned to **2/2 available replicas**.
-
-## Notes
-- Tested on the existing local Kind cluster named `cib-cluster`.
-- The Kubernetes Secret contains a demo placeholder, not a production credential.
-- The NodePort service uses port `30088`.
-- Website verification was performed using `kubectl port-forward`.
-
-## Phase 5: Monitoring and Observability
-
-Implemented a monitoring and observability stack for the Nexvion application using Prometheus, Grafana, Node Exporter, Blackbox Exporter, and Alertmanager.
-
-### Monitoring Components
-
-- **Prometheus:** Collects and stores monitoring metrics.
-- **Node Exporter:** Exposes server CPU, memory, and filesystem metrics.
-- **Blackbox Exporter:** Checks the availability and HTTP response status of Nexvion deployments.
-- **Grafana:** Visualizes system and application metrics in a dashboard.
-- **Alertmanager:** Receives and routes alerts generated by Prometheus.
-
-### Dashboard Panels
-
-The Grafana dashboard includes:
-1. CPU Usage
-2. Memory Usage
-3. Disk Usage
-4. Website Availability
-5. Website HTTP Status Code
-
-### Alert Rules
-
-Configured four Prometheus alert rules:
-- `NexvionWebsiteDown`
-- `HighCPUUsage`
-- `HighMemoryUsage`
-- `LowDiskSpace`
-
-### Validation and Testing
-
-- Verified all five Prometheus monitoring targets were UP.
-- Confirmed all three Nexvion website endpoints returned HTTP 200.
-- Simulated a website outage by stopping the candidate container.
-- Verified that `NexvionWebsiteDown` entered the FIRING state.
-- Restarted the candidate container and verified HTTP 200 recovery.
-- Validated Prometheus configuration and all four alert rules.
+Validated monitoring targets, simulated a website outage, observed the alert firing, and confirmed recovery.
 
 Alertmanager uses local-only routing; external email and messaging notifications are not configured.
 
-### Outcome
+## Phase 6 – Security
 
-Implemented centralized metrics collection, dashboard visualization, website availability monitoring, and alert detection for the Nexvion application.
+Implemented Trivy security scanning through GitHub Actions.
+
+### Filesystem and Secret Scanning
+
+- Scans project files for vulnerabilities and exposed secrets.
+- Checks HIGH and CRITICAL severity findings.
+- Ignores unfixed vulnerabilities.
+- Fails the workflow when matching findings are detected.
+
+### Docker Image Scanning
+
+- Scans operating-system and application-library vulnerabilities.
+- Checks HIGH and CRITICAL severity findings.
+- Runs as part of the CI/CD workflow and the dedicated security workflow.
+
+Both jobs in the dedicated Nexvion Security Scan workflow completed successfully during verification.
+
+Kubernetes demo secrets are placeholders only. Real credentials must never be committed to the repository.
+
+## Deployment Verification
+
+The project was tested using:
+
+- Docker container health checks.
+- HTTP checks for the home, products, and payment pages.
+- Kubernetes rollout and rollback tests.
+- Prometheus target and alert validation.
+- Grafana dashboard verification.
+- Trivy filesystem, secret, and image scans.
+
+## Repository Structure
+
+```text
+Nexvion/
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       ├── ansible.yml
+│       └── security.yml
+├── ansible/
+│   ├── inventory/
+│   ├── playbooks/
+│   └── templates/
+├── kubernetes/
+│   ├── namespace.yaml
+│   ├── configmap.yaml
+│   ├── deployment.yaml
+│   └── service.yaml
+├── site/
+│   ├── index.html
+│   ├── products.html
+│   ├── payment.html
+│   ├── CSS files
+│   └── JavaScript files
+├── terraform/
+│   ├── main.tf
+│   ├── variables.tf
+│   └── outputs.tf
+├── Dockerfile
+├── compose.yaml
+└── README.md
+```
+
+## Important Notes
+
+- This is a learning and demonstration project.
+- Terraform configuration does not imply that paid AWS resources are running.
+- Kubernetes uses a local Kind cluster.
+- Demo authentication and payment functionality are not production payment integrations.
+- Secrets, Terraform state, and local plan files are excluded from version control.
+
+## Project Outcome
+
+Nexvion demonstrates an end-to-end DevOps workflow covering application containerization, automated delivery, infrastructure configuration, orchestration, observability, and security validation.
