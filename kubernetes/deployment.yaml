@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexvion
+  namespace: nexvion
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nexvion
+  template:
+    metadata:
+      labels:
+        app: nexvion
+    spec:
+      containers:
+        - name: nexvion
+          image: nexvion-web:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: nexvion-config
+            - secretRef:
+                name: nexvion-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 20
