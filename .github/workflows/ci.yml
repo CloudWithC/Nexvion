@@ -9,11 +9,13 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -47,7 +49,7 @@ jobs:
           trap 'docker rm -f nexvion-test >/dev/null 2>&1 || true' EXIT
 
           for i in $(seq 1 10); do
-            if curl --fail --silent http://localhost:8080/ > /dev/null; then
+            if curl --fail --silent http://localhost:8080/ >/dev/null; then
               break
             fi
             sleep 2
@@ -77,30 +79,101 @@ jobs:
     needs: build-and-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 10
 
     steps:
-      - name: Deploy Nexvion
+      - name: Deploy Nexvion safely with rollback
         run: |
-          set -eu
+          set -Eeuo pipefail
 
-          docker pull ghcr.io/cloudwithc/nexvion:latest
+          IMAGE="ghcr.io/cloudwithc/nexvion:latest"
+          OLD="nexvion-web"
+          CANDIDATE="nexvion-candidate"
+          PREVIOUS="nexvion-previous"
 
-          docker rm -f nexvion-web 2>/dev/null || true
+          docker pull "$IMAGE"
 
-          docker run -d \
-            --name nexvion-web \
-            --restart unless-stopped \
-            -p 8088:80 \
-            ghcr.io/cloudwithc/nexvion:latest
+          if docker container inspect "$PREVIOUS" >/dev/null 2>&1; then
+            echo "Recovery container already exists. Stop and inspect before deploying."
+            exit 1
+          fi
 
-          for i in $(seq 1 10); do
-            if curl --fail --silent http://localhost:8088/ > /dev/null; then
-              echo "Nexvion deployment successful"
-              exit 0
+          docker rm -f "$CANDIDATE" >/dev/null 2>&1 || true
+
+          echo "Starting candidate on port 8089..."
+          docker run -d --name "$CANDIDATE" -p 8089:80 "$IMAGE"
+
+          echo "Testing candidate pages..."
+          CANDIDATE_OK=false
+
+          for i in $(seq 1 15); do
+            if curl -fsS http://localhost:8089/ >/dev/null &&
+               curl -fsS http://localhost:8089/products.html >/dev/null &&
+               curl -fsS http://localhost:8089/payment.html >/dev/null; then
+              CANDIDATE_OK=true
+              break
             fi
             sleep 2
           done
 
-          echo "Nexvion health check failed"
-          docker logs nexvion-web
-          exit 1
+          if [ "$CANDIDATE_OK" != "true" ]; then
+            docker logs "$CANDIDATE" || true
+            docker rm -f "$CANDIDATE" || true
+            echo "Candidate checks failed. Production remains unchanged."
+            exit 1
+          fi
+
+          echo "Candidate passed. Preparing production switch..."
+
+          if docker container inspect "$OLD" >/dev/null 2>&1; then
+            docker stop "$OLD"
+            docker rename "$OLD" "$PREVIOUS"
+          fi
+
+          rollback() {
+            echo "Deployment failed. Restoring previous version..."
+            docker rm -f "$OLD" >/dev/null 2>&1 || true
+
+            if docker container inspect "$PREVIOUS" >/dev/null 2>&1; then
+              docker rename "$PREVIOUS" "$OLD"
+              docker start "$OLD"
+            fi
+
+            docker rm -f "$CANDIDATE" >/dev/null 2>&1 || true
+          }
+
+          if ! docker run -d \
+            --name "$OLD" \
+            --restart unless-stopped \
+            -p 8088:80 \
+            "$IMAGE"; then
+            rollback
+            exit 1
+          fi
+
+          echo "Checking production pages..."
+
+          DEPLOY_OK=false
+
+          for i in $(seq 1 15); do
+            if curl -fsS http://localhost:8088/ >/dev/null &&
+               curl -fsS http://localhost:8088/products.html >/dev/null &&
+               curl -fsS http://localhost:8088/payment.html >/dev/null; then
+              DEPLOY_OK=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$DEPLOY_OK" != "true" ]; then
+            docker logs "$OLD" || true
+            rollback
+            exit 1
+          fi
+
+          echo "Production health checks passed."
+
+          docker rm -f "$PREVIOUS" >/dev/null 2>&1 || true
+          docker rm -f "$CANDIDATE" >/dev/null 2>&1 || true
+
+          echo "Nexvion deployment successful!"
