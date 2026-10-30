@@ -1,6 +1,5 @@
-cat > .gitignore <<'EOF'
-# Terraform
-**/.terraform/*
+# Terraform state and local files
+**/.terraform/
 *.tfstate
 *.tfstate.*
 *.tfplan
@@ -10,9 +9,16 @@ crash.*.log
 .terraformrc
 terraform.rc
 
-# Secrets
+# Secrets and credentials
 .env
 .env.*
 *.pem
 *.key
-EOF
+*.secret
+
+# Local backups and temporary files
+*.backup
+*.tmp
+
+# Kubernetes secrets
+kubernetes/secret.yaml
