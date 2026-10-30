@@ -1,0 +1,66 @@
+---
+- name: Configure Nexvion web server
+  hosts: nexvion
+  become: true
+
+  tasks:
+    - name: Update package cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Create Nexvion web directory
+      ansible.builtin.file:
+        path: /var/www/nexvion-ansible
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Copy Nexvion website files
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../site/"
+        dest: /var/www/nexvion-ansible/
+        owner: www-data
+        group: www-data
+        mode: preserve
+
+    - name: Configure Nexvion Nginx site
+      ansible.builtin.template:
+        src: ../templates/nexvion.conf.j2
+        dest: /etc/nginx/sites-available/nexvion
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart Nginx
+
+    - name: Enable Nexvion Nginx site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/nexvion
+        dest: /etc/nginx/sites-enabled/nexvion
+        state: link
+      notify: Restart Nginx
+
+    - name: Validate Nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Ensure Nginx is running
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+    - name: Apply pending Nginx restart
+      ansible.builtin.meta: flush_handlers
+
+  handlers:
+    - name: Restart Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

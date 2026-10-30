@@ -1,0 +1,13 @@
+server {
+    listen 8091;
+    listen [::]:8091;
+
+    server_name localhost;
+
+    root /var/www/nexvion-ansible;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
