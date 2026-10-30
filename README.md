@@ -183,7 +183,6 @@ Nexvion/
 
 ## Important Notes
 
-- This is a learning and demonstration project.
 - Terraform configuration does not imply that paid AWS resources are running.
 - Kubernetes uses a local Kind cluster.
 - Demo authentication and payment functionality are not production payment integrations.
