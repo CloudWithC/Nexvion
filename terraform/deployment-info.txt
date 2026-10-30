@@ -1,0 +1,9 @@
+Nexvion Deployment Infrastructure
+==================================
+Application: Nexvion
+Environment: Development
+Deployment: Docker + Nginx
+Port: 8088
+Managed By: Terraform
+Cloud Provider: AWS
+AWS Region: eu-north-1
