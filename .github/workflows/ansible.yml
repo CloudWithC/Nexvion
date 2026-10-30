@@ -1,0 +1,44 @@
+name: Nexvion Ansible CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ansible/**'
+      - '.github/workflows/ansible.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'ansible/**'
+      - '.github/workflows/ansible.yml'
+  workflow_dispatch:
+
+jobs:
+  ansible-validation:
+    name: Ansible Syntax and Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Ansible
+        run: python -m pip install ansible-core
+
+      - name: Check Ansible version
+        run: ansible --version
+
+      - name: Validate playbook syntax
+        working-directory: ansible
+        run: ansible-playbook playbooks/setup-nexvion.yml --syntax-check
+
+      - name: List playbook tasks
+        working-directory: ansible
+        run: ansible-playbook playbooks/setup-nexvion.yml --list-tasks
